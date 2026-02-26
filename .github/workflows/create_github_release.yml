@@ -1,17 +1,12 @@
 name: Create GitHub release
-
 on:
-  repository_dispatch:
-    types: [create-github-release]
-
-
+  workflow_dispatch: {}
 jobs:
   Create_GitHub_release:
     runs-on: ubuntu-latest
-
     steps:
     - name: Create release for ${{ github.event.client_payload.ReleaseBranchName }}
-      uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b #v1.20.0
+      uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b
       with:
         tag: ${{ github.event.client_payload.ReleaseBranchName }}
         name: ${{ github.event.client_payload.ReleaseTitle }}
