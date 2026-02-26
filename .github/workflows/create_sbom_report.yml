@@ -1,15 +1,11 @@
 name: Create SBOM for the release
-
-run-name: Collecting SBOM for ${{ github.event.client_payload.agentSpec || 'unknown image' }} - ${{ github.event.client_payload.imageVersion || 'unknown version' }}
-
+run-name: Collecting SBOM for ${{ github.event.client_payload.agentSpec || 'unknown
+  image' }} - ${{ github.event.client_payload.imageVersion || 'unknown version' }}
 on:
-  repository_dispatch:
-    types: [generate-sbom]
-
+  workflow_dispatch: {}
 defaults:
   run:
     shell: pwsh
-
 jobs:
   sbom-check:
     outputs:
@@ -21,23 +17,15 @@ jobs:
     - name: Check SBOM asset for release ${{ env.RELEASE_ID }}
       id: check
       shell: pwsh
-      run: |
-        $apiUrl = "https://api.github.com/repos/actions/runner-images/releases/$env:RELEASE_ID"
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -SkipHttpErrorCheck
-        if ($response.message -ilike "Not Found") {
-          echo "status=release_not_found" >> $env:GITHUB_OUTPUT
-          Write-Error "Release $env:RELEASE_ID wasn't found"
-          exit 1
-        }
-        foreach ($asset in $response.assets) {
-          if ($asset.name -like '*sbom*') {
-            echo "status=sbom_exists" >> $env:GITHUB_OUTPUT
-            return "Release $env:RELEASE_ID already contains a SBOM"
-          }
-        }
-        Write-Host "Release has been found, SBOM is not attached, starting generation."
-        echo "status=okay" >> $env:GITHUB_OUTPUT
-
+      run: "$apiUrl = \"https://api.github.com/repos/actions/runner-images/releases/$env:RELEASE_ID\"\
+        \n$response = Invoke-RestMethod -Uri $apiUrl -Method Get -SkipHttpErrorCheck\n\
+        if ($response.message -ilike \"Not Found\") {\n  echo \"status=release_not_found\"\
+        \ >> $env:GITHUB_OUTPUT\n  Write-Error \"Release $env:RELEASE_ID wasn't found\"\
+        \n  exit 1\n}\nforeach ($asset in $response.assets) {\n  if ($asset.name -like\
+        \ '*sbom*') {\n    echo \"status=sbom_exists\" >> $env:GITHUB_OUTPUT\n   \
+        \ return \"Release $env:RELEASE_ID already contains a SBOM\"\n  }\n}\nWrite-Host\
+        \ \"Release has been found, SBOM is not attached, starting generation.\"\n\
+        echo \"status=okay\" >> $env:GITHUB_OUTPUT\n"
   building-sbom:
     needs: sbom-check
     if: ${{ needs.sbom-check.outputs.check_status == 'okay' }}
@@ -47,66 +35,52 @@ jobs:
       RELEASE_ID: ${{ github.event.client_payload.ReleaseID }}
       IMAGE_VERSION: ${{ github.event.client_payload.imageVersion }}
     steps:
-      - name: Available image version check
-        run: |
-          $expectedVersion = $env:IMAGE_VERSION
-          $runnerVersion = $env:ImageVersion
-          
-          # Split versions by dot
-          $expectedParts = $expectedVersion.Split('.')
-          $runnerParts = $runnerVersion.Split('.')
-
-          # Determine what parts to compare
-          $minLength = [Math]::Min($expectedParts.Length, $runnerParts.Length)
-          $expectedComparable = $expectedParts[0..($minLength-1)] -join '.'
-          $runnerComparable = $runnerParts[0..($minLength-1)] -join '.'
-          
-          # Perform the comparison
-          if ($expectedComparable -ne $runnerComparable) {
-            throw "Version mismatch: Expected version '$expectedVersion' doesn't match runner version '$runnerVersion'"
-          }
-
-      - name: Install SYFT tool on Windows
-        if: ${{ runner.os == 'Windows' }}
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b C:/syft
-
-      - name: Install SYFT tool on Ubuntu 
-        if: ${{ runner.os == 'Linux' }}
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Install SYFT v1.24.0 on macOS
-        if: ${{ runner.os == 'macOS' }}
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin v1.24.0
-      
-      - name: Run SYFT on Windows
-        if: ${{ runner.os == 'Windows' }}
-        run: C:/syft/syft dir:C:/ -vv -o spdx-json=sbom.json
-
-      - name: Run SYFT on Ubuntu
-        if: ${{ runner.os == 'Linux' }}
-        run: syft dir:/ -vv -o spdx-json=sbom.json
-
-      - name: Run SYFT on macOS
-        if: ${{ runner.os == 'macOS' }}
-        # Skip protected folders to avoid prompt privileges that block process indefinitely (https://github.com/anchore/syft/issues/1367)
-        run: sudo syft dir:/ -vv -o spdx-json=sbom.json --exclude ./Users --exclude ./System/Volumes --exclude ./private
-        shell: bash
-
-      - name: Compress SBOM file
-        run: Compress-Archive sbom.json sbom.json.zip
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ env.AGENT_SPEC }}-${{ env.IMAGE_VERSION }}
-          path: sbom.json.zip
-          if-no-files-found: warn
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: "https://uploads.github.com/repos/actions/runner-images/releases/${{ env.RELEASE_ID }}/assets{?name,label}"
-          asset_path: ./sbom.json.zip
-          asset_name: sbom.${{ env.AGENT_SPEC }}.json.zip
-          asset_content_type: application/zip
+    - name: Available image version check
+      run: "$expectedVersion = $env:IMAGE_VERSION\n$runnerVersion = $env:ImageVersion\n\
+        \n# Split versions by dot\n$expectedParts = $expectedVersion.Split('.')\n\
+        $runnerParts = $runnerVersion.Split('.')\n\n# Determine what parts to compare\n\
+        $minLength = [Math]::Min($expectedParts.Length, $runnerParts.Length)\n$expectedComparable\
+        \ = $expectedParts[0..($minLength-1)] -join '.'\n$runnerComparable = $runnerParts[0..($minLength-1)]\
+        \ -join '.'\n\n# Perform the comparison\nif ($expectedComparable -ne $runnerComparable)\
+        \ {\n  throw \"Version mismatch: Expected version '$expectedVersion' doesn't\
+        \ match runner version '$runnerVersion'\"\n}\n"
+    - name: Install SYFT tool on Windows
+      if: ${{ runner.os == 'Windows' }}
+      run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh
+        | sh -s -- -b C:/syft
+    - name: Install SYFT tool on Ubuntu
+      if: ${{ runner.os == 'Linux' }}
+      run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh
+        | sh -s -- -b /usr/local/bin
+    - name: Install SYFT v1.24.0 on macOS
+      if: ${{ runner.os == 'macOS' }}
+      run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh
+        | sh -s -- -b /usr/local/bin v1.24.0
+    - name: Run SYFT on Windows
+      if: ${{ runner.os == 'Windows' }}
+      run: C:/syft/syft dir:C:/ -vv -o spdx-json=sbom.json
+    - name: Run SYFT on Ubuntu
+      if: ${{ runner.os == 'Linux' }}
+      run: syft dir:/ -vv -o spdx-json=sbom.json
+    - name: Run SYFT on macOS
+      if: ${{ runner.os == 'macOS' }}
+      run: sudo syft dir:/ -vv -o spdx-json=sbom.json --exclude ./Users --exclude
+        ./System/Volumes --exclude ./private
+      shell: bash
+    - name: Compress SBOM file
+      run: Compress-Archive sbom.json sbom.json.zip
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sbom-${{ env.AGENT_SPEC }}-${{ env.IMAGE_VERSION }}
+        path: sbom.json.zip
+        if-no-files-found: warn
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: https://uploads.github.com/repos/actions/runner-images/releases/${{
+          env.RELEASE_ID }}/assets{?name,label}
+        asset_path: ./sbom.json.zip
+        asset_name: sbom.${{ env.AGENT_SPEC }}.json.zip
+        asset_content_type: application/zip
